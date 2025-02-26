@@ -24,3 +24,4 @@ FoodScraper is a Rust-based tool that scrapes food recipes from a given URL and 
 3. Run the program using Cargo:
    ```sh
    cargo run
+4. Or navigate to the release folder an execute the .exe file
