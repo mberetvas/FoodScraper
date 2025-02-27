@@ -1,0 +1,6 @@
+[15gram]
+title = "h1.text-center"
+description = ".large-8"
+ingredients = ".detail-ingr-block"
+steps = "#preparation > ol:nth-child(2)"
+image = ".recipe-image"

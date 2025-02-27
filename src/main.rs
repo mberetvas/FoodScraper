@@ -1,17 +1,48 @@
 use reqwest;
-use scraper::{Html, Selector, ElementRef};
+use scraper::{ElementRef, Html, Selector};
 use serde::Serialize;
+use std::fs;
 use std::fs::File;
 use std::io::{self, Write};
+use toml::Value;
 use url::Url;
 
+/// Represents a recipe with various details.
+///
+/// This struct holds the details of a recipe, including the title, description,
+/// ingredients, steps, and image link. Each field is optional, as not all details
+/// may be available for every recipe.
 #[derive(Serialize)]
 struct Recipe {
+    /// The title of the recipe.
     title: Option<String>,
+    /// A brief description of the recipe.
     description: Option<String>,
+    /// A list of ingredients required for the recipe.
     ingredients: Option<Vec<String>>,
+    /// A list of steps to prepare the recipe.
     steps: Option<Vec<String>>,
+    /// A link to an image of the prepared recipe.
     image_link: Option<String>,
+}
+
+/// Represents the CSS selectors used to extract recipe details from a website.
+///
+/// This struct holds the CSS selectors for various parts of a recipe, including
+/// the title, description, ingredients, steps, and image. These selectors are
+/// used to parse the HTML document and extract the relevant information.
+#[derive(Debug)]
+struct Selectors {
+    /// The CSS selector for the recipe title.
+    title: String,
+    /// The CSS selector for the recipe description.
+    description: String,
+    /// The CSS selector for the recipe ingredients.
+    ingredients: String,
+    /// The CSS selector for the recipe steps.
+    steps: String,
+    /// The CSS selector for the recipe image.
+    image: String,
 }
 
 #[tokio::main]
@@ -36,23 +67,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let html_body = reqwest::get(&input_url).await?.text().await?;
-
-    // Set verbose to true for debugging
-    let verbose = false;
-
-    if verbose {
-        println!("HTML Body: {}", html_body);
-    }
-
     let document = Html::parse_document(&html_body);
+
+    // Load selectors from the TOML file
+    let selectors = load_selectors("selectors.toml", "15gram")?;
 
     // Get the recipe details
     let recipe = Recipe {
-        title: get_recipe_title(&document, verbose),
-        description: get_recipe_description(&document, verbose),
-        ingredients: get_recipe_ingredients(&document, verbose),
-        steps: get_recipe_steps(&document, verbose),
-        image_link: get_recipe_image(&document, verbose),
+        title: get_recipe_title(&document, &selectors.title, false),
+        description: get_recipe_description(&document, &selectors.description, false),
+        ingredients: get_recipe_ingredients(&document, &selectors.ingredients, false),
+        steps: get_recipe_steps(&document, &selectors.steps, false),
+        image_link: get_recipe_image(&document, &selectors.image, false),
     };
 
     // Create a valid file name from the title
@@ -71,6 +97,68 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Recipe JSON file '{}' created successfully.", file_name);
 
     Ok(())
+}
+
+/// Loads the CSS selectors for a specific website from a TOML file.
+///
+/// This function reads the content of a TOML file, parses it, and retrieves the CSS selectors
+/// for the specified website. It returns a `Selectors` struct containing the selectors.
+///
+/// # Arguments
+///
+/// * `file_path` - A string slice that holds the path to the TOML file.
+/// * `website` - A string slice that holds the name of the website to retrieve selectors for.
+///
+/// # Returns
+///
+/// * `Result<Selectors, Box<dyn std::error::Error>>` - Returns `Ok(Selectors)` if the selectors
+///   are successfully loaded, otherwise returns an `Err` with an appropriate error message.
+///
+/// # Errors
+///
+/// This function will return an error if the TOML file cannot be read, if the file content
+/// cannot be parsed, or if the specified website is not found in the TOML file.
+///
+/// # Examples
+///
+/// ```
+/// let selectors = load_selectors("selectors.toml", "15gram")?;
+/// println!("{:?}", selectors);
+/// ```
+fn load_selectors(file_path: &str, website: &str) -> Result<Selectors, Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(file_path)?;
+    let value: Value = toml::from_str(&content)?;
+
+    let website_selectors = value
+        .get(website)
+        .ok_or("Website not found in selectors file")?;
+    Ok(Selectors {
+        title: website_selectors
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        description: website_selectors
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        ingredients: website_selectors
+            .get("ingredients")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        steps: website_selectors
+            .get("steps")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        image: website_selectors
+            .get("image")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+    })
 }
 
 /// Validates a given URL string.
@@ -169,9 +257,8 @@ fn select_elements<'a>(document: &'a Html, selector: &'a str) -> Option<ElementR
 /// let title = get_recipe_title(&document, true);
 /// assert_eq!(title, Some("Delicious Recipe".to_string()));
 /// ```
-fn get_recipe_title(document: &Html, verbose: bool) -> Option<String> {
-    let title = select_elements(document, "h1.text-center")
-        .map(|e| e.inner_html());
+fn get_recipe_title(document: &Html,css_selector: String , verbose: bool) -> Option<String> {
+    let title = select_elements(document, "h1.text-center").map(|e| e.inner_html());
     if verbose {
         println!("Title: {:?}", title);
     }
@@ -314,9 +401,8 @@ fn get_recipe_steps(document: &Html, verbose: bool) -> Option<Vec<String>> {
 /// assert_eq!(image_link, Some("image.jpg".to_string()));
 /// ```
 fn get_recipe_image(document: &Html, verbose: bool) -> Option<String> {
-    let image_link = select_elements(document, ".recipe-image").and_then(|e| {
-        e.value().attr("src").map(|src| src.to_string())
-    });
+    let image_link = select_elements(document, ".recipe-image")
+        .and_then(|e| e.value().attr("src").map(|src| src.to_string()));
     if verbose {
         println!("Image Link: {:?}", image_link);
     }
