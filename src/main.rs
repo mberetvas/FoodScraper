@@ -146,16 +146,16 @@ fn select_elements<'a>(document: &'a Html, selector: &'a str) -> Option<ElementR
     document.select(&parsed_selector).next()
 }
 
-fn get_recipe_title(document: &Html, css_selector: String, verbose: bool) -> Option<String> {
-    let title = select_elements(document, "h1.text-center").map(|e| e.inner_html());
+fn get_recipe_title(document: &Html, css_selector: &str, verbose: bool) -> Option<String> {
+    let title = select_elements(document, css_selector).map(|e| e.inner_html());
     if verbose {
         println!("Title: {:?}", title);
     }
     title
 }
 
-fn get_recipe_description(document: &Html, verbose: bool) -> Option<String> {
-    let description = select_elements(document, ".large-8").map(|e|
+fn get_recipe_description(document: &Html, css_selector: &str, verbose: bool) -> Option<String> {
+    let description = select_elements(document, css_selector).map(|e|
         e.text().collect::<Vec<_>>().join(" ").trim().to_string()
     );
     if verbose {
@@ -164,8 +164,12 @@ fn get_recipe_description(document: &Html, verbose: bool) -> Option<String> {
     description
 }
 
-fn get_recipe_ingredients(document: &Html, verbose: bool) -> Option<Vec<String>> {
-    let ingredients = select_elements(document, ".detail-ingr-block").map(|e| {
+fn get_recipe_ingredients(
+    document: &Html,
+    css_selector: &str,
+    verbose: bool
+) -> Option<Vec<String>> {
+    let ingredients = select_elements(document, css_selector).map(|e| {
         e.text()
             .collect::<Vec<_>>()
             .iter()
@@ -179,8 +183,8 @@ fn get_recipe_ingredients(document: &Html, verbose: bool) -> Option<Vec<String>>
     ingredients
 }
 
-fn get_recipe_steps(document: &Html, verbose: bool) -> Option<Vec<String>> {
-    let steps = select_elements(document, "#preparation > ol:nth-child(2)").map(|e| {
+fn get_recipe_steps(document: &Html, css_selector: &str, verbose: bool) -> Option<Vec<String>> {
+    let steps = select_elements(document, css_selector).map(|e| {
         e.text()
             .collect::<Vec<_>>()
             .iter()
@@ -194,8 +198,8 @@ fn get_recipe_steps(document: &Html, verbose: bool) -> Option<Vec<String>> {
     steps
 }
 
-fn get_recipe_image(document: &Html, verbose: bool) -> Option<String> {
-    let image_link = select_elements(document, ".recipe-image").and_then(|e|
+fn get_recipe_image(document: &Html, css_selector: &str, verbose: bool) -> Option<String> {
+    let image_link = select_elements(document, css_selector).and_then(|e|
         e
             .value()
             .attr("src")
@@ -207,7 +211,9 @@ fn get_recipe_image(document: &Html, verbose: bool) -> Option<String> {
     image_link
 }
 
-fn read_toml_file<T: serde::de::DeserializeOwned>(file_path: &str) -> Result<T, Box<dyn std::error::Error>> {
+fn read_toml_file<T: serde::de::DeserializeOwned>(
+    file_path: &str
+) -> Result<T, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(file_path)?;
     let data: T = toml::from_str(&content)?;
     Ok(data)
