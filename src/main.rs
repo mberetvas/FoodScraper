@@ -37,7 +37,6 @@ struct Selectors {
     image: String,
 }
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
@@ -53,10 +52,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(err) => println!("Error: {}", err),
             }
 
-            if Url::parse(input_url).is_ok() && (input_url.contains("https://15gram.be/") || input_url.contains("https://dagelijksekost.vrt.be/")) {
+            if
+                Url::parse(input_url).is_ok() &&
+                (input_url.contains("https://15gram.be/") ||
+                    input_url.contains("https://dagelijksekost.vrt.be/"))
+            {
                 break input_url.to_string();
             } else {
-                println!("Invalid URL or URL does not contain a supported domain. Please try again.");
+                println!(
+                    "Invalid URL or URL does not contain a supported domain. Please try again."
+                );
             }
         };
 
@@ -64,10 +69,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let document = Html::parse_document(&html_body);
 
         // Parse the website name from the URL
-        let website_name = parse_website_name(&input_url).ok_or("Failed to parse website name from URL")?;
+        let website_name = parse_website_name(&input_url).ok_or(
+            "Failed to parse website name from URL"
+        )?;
 
         // Load selectors from the TOML file
-        let selectors = load_selectors("selectors.toml", &website_name)?;
+        let selectors = load_selectors("selectors.toml", &website_name)
+            .map_err(|e| {
+                println!("Failed to load selectors: {}", e);
+                e
+            })?;
 
         // Get the recipe details
         let recipe = Recipe {
@@ -86,11 +97,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         // Serialize the recipe to JSON and write to a file
-        let json = serde_json::to_string_pretty(&recipe)?;
-        std::fs::create_dir_all("recipes")?;
+        let json = serde_json::to_string_pretty(&recipe)
+            .map_err(|e| {
+                println!("Failed to serialize recipe to JSON: {}", e);
+                e
+            })?;
+        std::fs::create_dir_all("recipes")
+            .map_err(|e| {
+                println!("Failed to create directory 'recipes': {}", e);
+                e
+            })?;
         let file_path = format!("recipes/{}", file_name);
-        let mut file = File::create(&file_path)?;
-        file.write_all(json.as_bytes())?;
+        let mut file = File::create(&file_path)
+            .map_err(|e| {
+                println!("Failed to create file '{}': {}", file_path, e);
+                e
+            })?;
+        file.write_all(json.as_bytes())
+            .map_err(|e| {
+                println!("Failed to write to file '{}': {}", file_path, e);
+                e
+            })?;
 
         println!("Recipe JSON file '{}' created successfully.", file_name);
 
@@ -230,5 +257,8 @@ fn get_recipe_image(document: &Html, css_selector: &str, verbose: bool) -> Optio
 
 fn parse_website_name(url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
-    url.host_str()?.split('.').next().map(|s| s.to_string())
+    url.host_str()?
+        .split('.')
+        .next()
+        .map(|s| s.to_string())
 }
