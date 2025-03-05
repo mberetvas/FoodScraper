@@ -206,3 +206,9 @@ fn get_recipe_image(document: &Html, verbose: bool) -> Option<String> {
     }
     image_link
 }
+
+fn read_toml_file<T: serde::de::DeserializeOwned>(file_path: &str) -> Result<T, Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(file_path)?;
+    let data: T = toml::from_str(&content)?;
+    Ok(data)
+}
