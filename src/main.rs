@@ -37,6 +37,10 @@ struct Selectors {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // For debugging purposes print the content of the toml file on the teminal
+    let selectors = read_toml_file::<Value>("selectors.toml")?;
+    println!("{:#?}", selectors);
+
     // Ask the user for the URL
     let input_url = loop {
         println!("Please enter the recipe URL:");
