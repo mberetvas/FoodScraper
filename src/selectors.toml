@@ -4,3 +4,10 @@ description = ".large-8"
 ingredients = ".detail-ingr-block"
 steps = "#preparation > ol:nth-child(2)"
 image = ".recipe-image"
+
+[dagelijksekost]
+title = "div.MuiGrid2-grid-lg-6:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > h1:nth-child(2)"
+description = "div.MuiGrid2-grid-lg-6:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > span:nth-child(1)"
+ingredients = "#ingredients-tabpanel-0"
+steps = ".MuiGrid2-spacing-md-6 > div:nth-child(1) > div:nth-child(1) > div:nth-child(2)"
+image = "div.MuiGrid2-grid-lg-6:nth-child(1) > div:nth-child(1) > div:nth-child(2)"
