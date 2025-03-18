@@ -1,13 +1,26 @@
-use clap::{App, Arg};
+use clap::Parser;
 use reqwest;
 use scraper::{ElementRef, Html, Selector};
 use serde::Serialize;
+use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use toml::Value;
 use url::Url;
-use std::env;
+
+/// Command-line arguments for the FoodScraper application.
+#[derive(Parser, Debug)]
+#[command(version = "1.0", author = "Maxime Beretvas", about = "Scrapes recipes from supported websites")]
+struct Args {
+    /// The URL of the recipe to scrape.
+    #[arg(short, long)]
+    url: String,
+
+    /// The output folder to save the recipe JSON. Defaults to the script's directory.
+    #[arg(short, long)]
+    output: Option<String>,
+}
 
 #[derive(Serialize)]
 struct Recipe {
@@ -42,30 +55,14 @@ struct RecipeCssSelectors {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments
-    let matches = App::new("FoodScraper")
-        .version("1.0")
-        .author("Maxime Beretvas")
-        .about("Scrapes recipes from supported websites")
-        .arg(
-            Arg::new("Url")
-                .about("The URL of the recipe to scrape")
-                .required(true)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("Output")
-                .about("The output folder to save the recipe JSON")
-                .required(false)
-                .takes_value(true),
-        )
-        .get_matches();
+    let args = Args::parse();
 
-    let input_url = matches.value_of("Url").unwrap();
-    let output_folder = matches.value_of("Output").unwrap_or_else(|| {
+    let input_url = &args.url;
+    let output_folder = args.output.unwrap_or_else(|| {
         env::current_exe()
             .ok()
-            .and_then(|path| path.parent().map(|p| p.to_str().unwrap_or(".")))
-            .unwrap_or(".")
+            .and_then(|path| path.parent().map(|p| p.to_str().unwrap_or(".").to_string()))
+            .unwrap_or_else(|| ".".to_string())
     });
 
     // Validate the URL
@@ -78,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let selectors = load_selectors("selectors.toml", &website_name)?;
 
     let recipe = extract_recipe(&document, &selectors, input_url);
-    save_recipe_to_file(&recipe, output_folder)?;
+    save_recipe_to_file(&recipe, &output_folder)?;
 
     println!("Recipe scraping completed successfully.");
     Ok(())
