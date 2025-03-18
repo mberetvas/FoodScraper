@@ -207,3 +207,43 @@ fn parse_website_name(url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
     url.host_str()?.split('.').next().map(|s| s.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_supported_url_valid() {
+        assert!(validate_supported_url("https://15gram.be/some-recipe"));
+    }
+
+    #[test]
+    fn test_validate_supported_url_invalid() {
+        assert!(!validate_supported_url("https://www.unsupportedsite.com"));
+    }
+   
+   #[test]
+   fn test_validate_url_valid() {
+       let result = validate_url("https://www.example.com");
+       assert!(result.is_ok());
+       // you can add more assertions if needed
+   }
+
+   #[test]
+   fn test_validate_url_invalid() {
+       let result = validate_url("invalid url");
+       assert!(result.is_err());
+   }
+     #[test]
+   fn test_parse_website_name_valid() {
+       let url = "https://15gram.be/recipe";
+       let expected_name = Some("15gram".to_string());
+       assert_eq!(parse_website_name(url), expected_name);
+   }
+
+   #[test]
+   fn test_parse_website_name_invalid() {
+       let url = "invalid_url";
+       assert_eq!(parse_website_name(url), None);
+   }
+}
