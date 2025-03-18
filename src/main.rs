@@ -1,11 +1,13 @@
+use clap::{App, Arg};
 use reqwest;
 use scraper::{ElementRef, Html, Selector};
 use serde::Serialize;
 use std::fs;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::Write;
 use toml::Value;
 use url::Url;
+use std::env;
 
 #[derive(Serialize)]
 struct Recipe {
@@ -39,41 +41,53 @@ struct RecipeCssSelectors {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    loop {
-        let input_url = get_user_input_url()?;
-        let document = fetch_html_document(&input_url).await?;
-        let website_name = parse_website_name(&input_url).ok_or("Failed to parse website name from URL")?;
-        let selectors = load_selectors("selectors.toml", &website_name)?;
+    // Parse command-line arguments
+    let matches = App::new("FoodScraper")
+        .version("1.0")
+        .author("Maxime Beretvas")
+        .about("Scrapes recipes from supported websites")
+        .arg(
+            Arg::new("Url")
+                .about("The URL of the recipe to scrape")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("Output")
+                .about("The output folder to save the recipe JSON")
+                .required(false)
+                .takes_value(true),
+        )
+        .get_matches();
 
-        let recipe = extract_recipe(&document, &selectors, &input_url);
-        save_recipe_to_file(&recipe)?;
+    let input_url = matches.value_of("Url").unwrap();
+    let output_folder = matches.value_of("Output").unwrap_or_else(|| {
+        env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(|p| p.to_str().unwrap_or(".")))
+            .unwrap_or(".")
+    });
 
-        if !ask_user_to_continue()? {
-            break;
-        }
+    // Validate the URL
+    if !validate_supported_url(input_url) {
+        return Err("Invalid URL or unsupported domain.".into());
     }
+
+    let document = fetch_html_document(input_url).await?;
+    let website_name = parse_website_name(input_url).ok_or("Failed to parse website name from URL")?;
+    let selectors = load_selectors("selectors.toml", &website_name)?;
+
+    let recipe = extract_recipe(&document, &selectors, input_url);
+    save_recipe_to_file(&recipe, output_folder)?;
+
+    println!("Recipe scraping completed successfully.");
     Ok(())
 }
 
-/// Prompts the user to enter a recipe URL and validates it.
-fn get_user_input_url() -> Result<String, Box<dyn std::error::Error>> {
-    loop {
-        println!("Please enter the recipe URL:");
-        let mut input_url = String::new();
-        io::stdin().read_line(&mut input_url)?;
-        let input_url = input_url.trim();
-
-        match validate_url(input_url) {
-            Ok(valid_url) => println!("Valid URL: {}", valid_url),
-            Err(err) => println!("Error: {}", err),
-        }
-
-        if Url::parse(input_url).is_ok() && (input_url.contains("https://15gram.be/") || input_url.contains("https://dagelijksekost.vrt.be/")) {
-            return Ok(input_url.to_string());
-        } else {
-            println!("Invalid URL or URL does not contain a supported domain. Please try again.");
-        }
-    }
+/// Validates if the URL belongs to a supported domain.
+fn validate_supported_url(input_url: &str) -> bool {
+    Url::parse(input_url).is_ok()
+        && (input_url.contains("https://15gram.be/") || input_url.contains("https://dagelijksekost.vrt.be/"))
 }
 
 /// Fetches the HTML document from the given URL.
@@ -94,29 +108,21 @@ fn extract_recipe(document: &Html, selectors: &RecipeCssSelectors, source_url: &
     }
 }
 
-/// Saves the recipe to a JSON file.
-fn save_recipe_to_file(recipe: &Recipe) -> Result<(), Box<dyn std::error::Error>> {
+/// Saves the recipe to a JSON file in the specified output folder.
+fn save_recipe_to_file(recipe: &Recipe, output_folder: &str) -> Result<(), Box<dyn std::error::Error>> {
     let file_name = match &recipe.title {
         Some(title) => format!("recipe_{}.json", title),
         None => "recipe.json".to_string(),
     };
 
     let json = serde_json::to_string_pretty(recipe)?;
-    std::fs::create_dir_all("recipes")?;
-    let file_path = format!("recipes/{}", file_name);
+    std::fs::create_dir_all(output_folder)?;
+    let file_path = format!("{}/{}", output_folder, file_name);
     let mut file = File::create(&file_path)?;
     file.write_all(json.as_bytes())?;
 
-    println!("Recipe JSON file '{}' created successfully.", file_name);
+    println!("Recipe JSON file '{}' created successfully in '{}'.", file_name, output_folder);
     Ok(())
-}
-
-/// Asks the user if they want to scrape another recipe.
-fn ask_user_to_continue() -> Result<bool, Box<dyn std::error::Error>> {
-    println!("Do you want to scrape another recipe? (yes/no):");
-    let mut continue_input = String::new();
-    io::stdin().read_line(&mut continue_input)?;
-    Ok(continue_input.trim().to_lowercase() == "yes")
 }
 
 fn load_selectors(file_path: &str, website: &str) -> Result<RecipeCssSelectors, Box<dyn std::error::Error>> {
